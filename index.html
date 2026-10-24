@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RX-8 CAN Tezgâhı — ESP32 ile Mazda RX-8 Gösterge Paneli Simülatörü</title>
+<meta name="description" content="Mazda RX-8 (SE3P 2003–2008) gösterge panelini masada ESP32 / ESP32-S3 ve SN65HVD230 CAN modülüyle çalıştırma föyü: bağlantı şeması, breadboard, 12 pinli soket pinout, CAN mesajları ve Wi-Fi kontrol paneli.">
+<meta name="keywords" content="Mazda RX-8, RX8 cluster, gösterge paneli, CAN bus, ESP32, ESP32-S3, TWAI, SN65HVD230, PCM simülatörü, 0x201, 0x420, ECU, arduino, cluster pinout">
+<meta name="author" content="Erdem Erciyas">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#c4122f">
+<link rel="canonical" href="https://erdemerciyas.github.io/Canbus-Ecu/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23c4122f'/%3E%3Cpath d='M32 10 52 21v22L32 54 12 43V21z' fill='none' stroke='%23fff' stroke-width='5' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23fff'/%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="tr_TR">
+<meta property="og:site_name" content="Canbus-Ecu">
+<meta property="og:title" content="RX-8 CAN Tezgâhı — ESP32 ile Mazda RX-8 Gösterge Paneli">
+<meta property="og:description" content="RX-8 göstergesini masada ESP32 ve CAN bus ile çalıştırma föyü: şema, breadboard, soket pinout ve CAN mesajları.">
+<meta property="og:url" content="https://erdemerciyas.github.io/Canbus-Ecu/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="RX-8 CAN Tezgâhı — ESP32 ile Mazda RX-8 Gösterge Paneli">
+<meta name="twitter:description" content="RX-8 göstergesini masada ESP32 ve CAN bus ile çalıştırma föyü.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "RX-8 CAN Tezgâhı — ESP32 ile Mazda RX-8 Gösterge Paneli Simülatörü",
+  "description": "Mazda RX-8 (SE3P) gösterge panelini ESP32 ve CAN bus ile masada çalıştırma rehberi: bağlantı şeması, breadboard yerleşimi, soket pinout, kurulum ve yükleme.",
+  "inLanguage": "tr-TR",
+  "url": "https://erdemerciyas.github.io/Canbus-Ecu/",
+  "author": {"@type": "Person", "name": "Erdem Erciyas", "url": "https://github.com/erdemerciyas"},
+  "about": ["Mazda RX-8", "CAN bus", "ESP32", "Instrument cluster"],
+  "proficiencyLevel": "Intermediate",
+  "isBasedOn": "https://github.com/erdemerciyas/Canbus-Ecu",
+  "dateModified": "2026-10-24"
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: tek sütun atölye föyü — özet → şema → breadboard → soket → tablo → kurulum → yükle */
+:root{
+  --bg:#eceef1; --surface:#fbfbfc; --surface-2:#f3f4f6; --ink:#14171c; --muted:#5a626e; --line:#d3d8df;
+  --accent:#c4122f; --ok:#1e8a4c;
+  --bb:#f4f2ec; --bb-edge:#d6d1c4; --hole:#4a4a4a; --gap:#e1ddd1;
+  --rail-p:#d4343b; --rail-n:#2c62c4;
+  --pcb:#1d2430; --pcb-2:#2a3341; --pin:#c9a12e; --silk:#aeb7c4; --mod:#1f4fa3;
+  --w-12v:#a5101c; --w-ig:#e7791f; --w-gnd:#1b1b1b; --w-33:#e23b3b; --w-tx:#f0c010; --w-rx:#27a148; --w-canh:#2f6fe0; --w-canl:#8a4fd8;
+  --w-sig:#5b6b82; --w-lamp:#0f9488; --w-turn:#d97706;
+  --edge:rgba(0,0,0,.32);
+  --f-display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#101216; --surface:#181b21; --surface-2:#1e2229; --ink:#e6e8eb; --muted:#99a1ac; --line:#2c313a;
+    --accent:#ff5468; --ok:#4cc985;
+    --bb:#cbc7bc; --bb-edge:#a7a296; --hole:#383838; --gap:#b9b4a8;
+    --w-gnd:#9097a1; --edge:rgba(0,0,0,.6);
+    --w-sig:#8b9bb3; --w-lamp:#2cc5b6; --w-turn:#f59e0b;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101216; --surface:#181b21; --surface-2:#1e2229; --ink:#e6e8eb; --muted:#99a1ac; --line:#2c313a;
+  --accent:#ff5468; --ok:#4cc985;
+  --bb:#cbc7bc; --bb-edge:#a7a296; --hole:#383838; --gap:#b9b4a8;
+  --w-gnd:#9097a1; --edge:rgba(0,0,0,.6);
+  --w-sig:#8b9bb3; --w-lamp:#2cc5b6; --w-turn:#f59e0b;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55}
+.wrap{max-width:1080px;margin:0 auto;padding-block:40px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:56px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.1}
+h1{font-size:clamp(2.2rem,5vw,3.4rem);letter-spacing:.01em}
+h2{font-size:1.75rem}
+h3{font-size:1.15rem;letter-spacing:.02em}
+p{margin:0;max-width:68ch}
+a{color:var(--accent)}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+.eyebrow{font-family:var(--f-mono);font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.muted{color:var(--muted)}
+
+header{display:grid;gap:18px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.facts div{background:var(--surface);padding:14px 16px;display:grid;gap:2px}
+.facts b{font-family:var(--f-display);font-size:1.25rem;font-variant-numeric:tabular-nums}
+.facts span{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+nav{display:flex;flex-wrap:wrap;gap:8px}
+nav a{font-size:.9rem;color:var(--ink);text-decoration:none;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+nav a:hover,nav a:focus-visible{border-color:var(--accent);color:var(--accent);outline:none}
+
+section{display:grid;gap:20px;scroll-margin-top:16px}
+.sec-head{display:grid;gap:6px}
+
+/* Şekiller */
+figure{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;display:grid}
+.fig-scroll{overflow-x:auto;padding:16px}
+.fig-scroll svg{display:block;width:100%;min-width:760px;height:auto}
+figcaption{border-top:1px solid var(--line);padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;font-size:.85rem;color:var(--muted)}
+.lg{display:inline-flex;align-items:center;gap:6px}
+.lg i{width:18px;height:4px;border-radius:2px;display:inline-block;box-shadow:0 0 0 1px var(--edge)}
+svg text{font-family:var(--f-body)}
+svg .t{fill:var(--ink);font-size:13px;font-weight:600}
+svg .s{fill:var(--muted);font-size:10px}
+svg .pl{fill:var(--ink);font-family:var(--f-mono);font-size:10px}
+svg .blk{fill:var(--surface-2);stroke:var(--muted);stroke-width:1.2}
+svg .ln{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+svg .b12{stroke:var(--w-12v);stroke-width:4} svg .ig{stroke:var(--w-ig)} svg .gnd{stroke:var(--w-gnd)} svg .v33{stroke:var(--w-33)}
+svg .tx{stroke:var(--w-tx)} svg .rx{stroke:var(--w-rx)} svg .canh{stroke:var(--w-canh)} svg .canl{stroke:var(--w-canl)}
+svg .sig{stroke:var(--w-sig);stroke-width:2.5} svg .lamp{stroke:var(--w-lamp)} svg .turn{stroke:var(--w-turn)}
+svg .dot{fill:var(--ink)}
+svg .edge{fill:none;stroke:var(--edge);stroke-width:6.5;stroke-linecap:round}
+svg .core{fill:none;stroke-width:4;stroke-linecap:round}
+svg .end{stroke:var(--edge);stroke-width:1}
+svg [data-w]{transition:opacity .15s}
+body.hl svg [data-w]:not(.on){opacity:.12}
+
+/* Not kutusu */
+.callout{display:grid;gap:6px;align-content:start;padding:14px 16px;border-radius:10px;border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--surface)}
+.callout b{font-family:var(--f-display);font-size:1.05rem}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.two>*{min-width:0}
+
+/* Tablo */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:.92rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--surface-2)}
+tbody tr:last-child td{border-bottom:0}
+tbody tr[data-w]:hover,tbody tr[data-w]:focus-visible{background:var(--surface-2);outline:none}
+td.n{font-family:var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+td .mono{white-space:nowrap}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;box-shadow:0 0 0 1px var(--edge)}
+tr.sub td{background:var(--surface-2);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* Adımlar */
+ol.steps{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:12px}
+ol.steps>li{counter-increment:s;display:grid;grid-template-columns:36px minmax(0,1fr);gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+ol.steps>li::before{content:counter(s);font-family:var(--f-display);font-weight:700;font-size:1.3rem;color:var(--accent);line-height:1.2}
+ol.steps>li>div>b:first-child{display:block}
+ol.steps ul{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:.93rem}
+
+.rules{margin:0;padding-left:20px;display:grid;gap:6px;max-width:80ch}
+.rules li::marker{color:var(--accent)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="wrap">
+
+<header>
+  <div class="eyebrow">YD-ESP32-23 · ESP32-S3 · TWAI · 500 kbit/s</div>
+  <h1>RX-8 CAN Tezgâhı</h1>
+  <p>RX-8 göstergesini masada çalıştırmak için bağlantı föyü. Kart motor beyninin CAN mesajlarını gönderir; değerler telefondan, kartın açtığı Wi-Fi panelinden değiştirilir.</p>
+  <div class="facts">
+    <div><span>Kart</span><b>YD-ESP32-23 · N16R8</b></div>
+    <div><span>CAN pinleri</span><b>TX GPIO5 · RX GPIO4</b></div>
+    <div><span>Gösterge soketi</span><b>12 pin · 1C 1G 1E 1J 1L</b></div>
+    <div><span>Kontrol</span><b>RX8-Cluster · 192.168.4.1</b></div>
+  </div>
+  <nav>
+    <a href="#sema">Bağlantı şeması</a>
+    <a href="#breadboard">Breadboard</a>
+    <a href="#pinler">Gösterge soketi</a>
+    <a href="#iliski">Soket ↔ breadboard</a>
+    <a href="#tablo">Kablo tablosu</a>
+    <a href="#kurulum">Kurulum</a>
+    <a href="#yukle">Yükle ve çalıştır</a>
+    <a href="#lambalar">Kablolu lambalar</a>
+  </nav>
+</header>
+
+<!-- ============ ŞEMA ============ -->
+<section id="sema">
+  <div class="sec-head">
+    <h2>Bağlantı şeması</h2>
+    <p class="muted">12V yalnızca göstergeye gider; kart ve CAN modülü 3.3V ile çalışır. İki taraf ortak GND'de buluşur.</p>
+  </div>
+  <figure>
+    <div class="fig-scroll">
+      <svg viewBox="0 0 900 470" role="img" aria-label="Sistem bağlantı şeması">
+        <defs>
+          <marker id="aTx" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--w-tx)"/></marker>
+          <marker id="aRx" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--w-rx)"/></marker>
+        </defs>
+
+        <!-- 12V kaynak -->
+        <rect class="blk" x="40" y="40" width="130" height="90" rx="8"/>
+        <text class="t" x="52" y="70">12V adaptör</text>
+        <text class="s" x="52" y="86">3A · DC jak klemensi</text>
+        <text class="pl" x="162" y="69" text-anchor="end">+</text>
+        <text class="pl" x="162" y="114" text-anchor="end">−</text>
+
+        <!-- sigorta -->
+        <g data-w="b12">
+          <path class="ln b12" d="M170,65 H195 M239,65 H290 M370,65 H690"/>
+        </g>
+        <rect x="195" y="57" width="44" height="16" rx="3" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.2"/>
+        <path d="M200,65 H234" stroke="var(--ink)" stroke-width="1.4"/>
+        <text class="s" x="217" y="50" text-anchor="middle">2A sigorta</text>
+
+        <!-- WAGO -->
+        <rect class="blk" x="290" y="50" width="80" height="30" rx="5"/>
+        <text class="pl" x="330" y="69" text-anchor="middle" font-weight="600">Klemens +12V</text>
+        <rect class="blk" x="290" y="135" width="80" height="30" rx="5"/>
+        <text class="pl" x="330" y="154" text-anchor="middle" font-weight="600">Klemens GND</text>
+
+        <!-- IG + anahtar -->
+        <g data-w="ig">
+          <path class="ln ig" d="M410,65 V105 H455 M495,105 H690"/>
+          <path class="ln ig" d="M455,105 L491,91" stroke-width="2.5"/>
+          <circle cx="455" cy="105" r="3.5" fill="var(--surface)" stroke="var(--w-ig)" stroke-width="2"/>
+          <circle cx="495" cy="105" r="3.5" fill="var(--surface)" stroke="var(--w-ig)" stroke-width="2"/>
+        </g>
+        <circle class="dot" cx="410" cy="65" r="4"/>
+        <text class="s" x="475" y="128" text-anchor="middle">kontak anahtarı</text>
+
+        <!-- GND -->
+        <g data-w="gnd">
+          <path class="ln gnd" d="M170,110 H230 V150 H290 M370,150 H690 M330,165 V440 M125,410 V440 H460 V410"/>
+          <circle class="dot" cx="330" cy="440" r="4"/>
+        </g>
+
+        <text class="s" x="520" y="59">+12V sabit</text>
+        <text class="s" x="520" y="99">+12V kontak</text>
+        <text class="s" x="520" y="144">şase</text>
+
+        <!-- ESP32-S3 -->
+        <rect class="blk" x="40" y="260" width="170" height="150" rx="8"/>
+        <text class="t" x="52" y="284">YD-ESP32-23</text>
+        <text class="s" x="52" y="300">ESP32-S3 · TWAI 500 kbit/s</text>
+        <text class="s" x="52" y="336" font-size="9">Güç + program:</text>
+        <text class="s" x="52" y="349" font-size="9">"USB" yazan Type-C</text>
+        <text class="s" x="52" y="362" font-size="9">(PC veya USB modül)</text>
+        <text class="pl" x="202" y="304" text-anchor="end">IO5·TX</text>
+        <text class="pl" x="202" y="344" text-anchor="end">IO4·RX</text>
+        <text class="pl" x="202" y="384" text-anchor="end">3V3</text>
+        <text class="pl" x="125" y="402" text-anchor="middle">GND</text>
+
+        <!-- SN65HVD230 -->
+        <rect class="blk" x="380" y="260" width="160" height="150" rx="8"/>
+        <text class="t" x="470" y="318" text-anchor="middle">SN65HVD230</text>
+        <text class="s" x="470" y="350" text-anchor="middle">VP230 · vidalı klemens</text>
+        <text class="s" x="470" y="334" text-anchor="middle">CAN alıcı-verici</text>
+        <text class="s" x="470" y="364" text-anchor="middle">120Ω kart üstünde</text>
+        <text class="pl" x="388" y="304">TX</text>
+        <text class="pl" x="388" y="344">RX</text>
+        <text class="pl" x="388" y="384">3.3V</text>
+        <text class="pl" x="460" y="402" text-anchor="middle">GND</text>
+        <text class="pl" x="440" y="278" text-anchor="middle">CANH</text>
+        <text class="pl" x="500" y="278" text-anchor="middle">CANL</text>
+
+        <!-- ESP32 ↔ modül -->
+        <g data-w="tx"><path class="ln tx" d="M210,300 H324 a6,6 0 0 1 12,0 H376" marker-end="url(#aTx)"/></g>
+        <g data-w="rx"><path class="ln rx" d="M380,340 H336 a6,6 0 0 0 -12,0 H214" marker-end="url(#aRx)"/></g>
+        <g data-w="v33"><path class="ln v33" d="M210,380 H324 a6,6 0 0 1 12,0 H380"/></g>
+
+        <!-- CAN hattı -->
+        <g data-w="canh"><path class="ln canh" d="M440,260 V215 H690"/></g>
+        <g data-w="canl"><path class="ln canl" d="M500,260 V250 H690"/></g>
+        <text class="s" x="452" y="209">CAN-H</text>
+        <text class="s" x="512" y="244">CAN-L</text>
+
+        <!-- opsiyonel sonlandırma -->
+        <path d="M650,215 V222 M650,243 V250" stroke="var(--ink)" stroke-width="1.5"/>
+        <rect x="644" y="222" width="12" height="21" rx="2" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.3" stroke-dasharray="3 2"/>
+        <circle class="dot" cx="650" cy="215" r="3.5"/>
+        <circle class="dot" cx="650" cy="250" r="3.5"/>
+        <text class="s" x="686" y="268" text-anchor="end">120Ω, ölçüme göre</text>
+
+        <!-- Gösterge -->
+        <text class="t" x="785" y="30" text-anchor="middle">RX-8 gösterge (S1)</text>
+        <rect class="blk" x="690" y="40" width="190" height="260" rx="12"/>
+        <text class="pl" x="700" y="69"><tspan font-weight="600">B+</tspan><tspan fill="var(--muted)"> · 1C</tspan></text>
+        <text class="pl" x="700" y="109"><tspan font-weight="600">IG</tspan><tspan fill="var(--muted)"> · 1G</tspan></text>
+        <text class="pl" x="700" y="154"><tspan font-weight="600">GND</tspan><tspan fill="var(--muted)"> · 1E</tspan></text>
+        <text class="pl" x="700" y="219"><tspan font-weight="600">CAN-H</tspan><tspan fill="var(--muted)"> · 1J</tspan></text>
+        <text class="pl" x="700" y="254"><tspan font-weight="600">CAN-L</tspan><tspan fill="var(--muted)"> · 1L</tspan></text>
+        <!-- devir saati: 0–10 ×1000, kırmızı bölge 9000 -->
+        <path d="M814.8,173.2 A30,30 0 1 1 864.5,161.3" fill="none" stroke="var(--muted)" stroke-width="3"/>
+        <path d="M864.5,161.3 A30,30 0 0 1 856.2,173.2" fill="none" stroke="var(--accent)" stroke-width="3"/>
+        <path d="M836,152 L816.6,137.9" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="836" cy="152" r="3.5" fill="var(--ink)"/>
+        <text class="s" x="836" y="194" text-anchor="middle" font-size="8">×1000 r/min</text>
+        <text class="pl" x="836" y="222" text-anchor="middle" font-size="8">0x201 devir/hız</text>
+        <text class="pl" x="836" y="236" text-anchor="middle" font-size="8">0x420 ısı/lamba</text>
+      </svg>
+    </div>
+    <figcaption>
+      <span class="lg"><i style="background:var(--w-12v)"></i>+12V sabit</span>
+      <span class="lg"><i style="background:var(--w-ig)"></i>+12V kontak</span>
+      <span class="lg"><i style="background:var(--w-gnd)"></i>GND</span>
+      <span class="lg"><i style="background:var(--w-33)"></i>3.3V</span>
+      <span class="lg"><i style="background:var(--w-tx)"></i>TX</span>
+      <span class="lg"><i style="background:var(--w-rx)"></i>RX</span>
+      <span class="lg"><i style="background:var(--w-canh)"></i>CAN-H</span>
+      <span class="lg"><i style="background:var(--w-canl)"></i>CAN-L</span>
+      <span>Nokta bağlantı demek; köprü yapan çizgiler birbirine bağlı değildir.</span>
+    </figcaption>
+  </figure>
+</section>
+
+<!-- ============ BREADBOARD ============ -->
+<section id="breadboard">
+  <div class="sec-head">
+    <h2>Breadboard dizilimi</h2>
+    <p class="muted">830 delikli büyük boy breadboard, üstten bakış. YD-ESP32-23 orta kanalın üstüne oturur; gereken bütün pinler (G, 3V3, GPIO4, GPIO5) kartın J1 sırasında. <span class="mono">j25</span> = j satırı, 25. sütun.</p>
+  </div>
+  <figure>
+    <div class="fig-scroll">
+      <svg viewBox="0 0 980 500" role="img" aria-label="Breadboard üzerinde SN65HVD230 ve YD-ESP32-23 bağlantısı">
+        <defs>
+          <pattern id="holeS" x="51" y="81" width="18" height="18" patternUnits="userSpaceOnUse"><rect x="6" y="6" width="6" height="6" rx="1" fill="var(--hole)"/></pattern>
+          <pattern id="holeR" x="51" y="23" width="18" height="18" patternUnits="userSpaceOnUse"><rect x="6" y="6" width="6" height="6" rx="1" fill="var(--hole)"/></pattern>
+          <pattern id="hdrP" x="51" y="99" width="18" height="18" patternUnits="userSpaceOnUse"><rect x="6" y="6" width="6" height="6" fill="var(--pin)"/></pattern>
+        </defs>
+        <g transform="translate(50,0)">
+          <!-- gövde -->
+          <rect x="36" y="10" width="750" height="350" rx="8" fill="var(--bb)" stroke="var(--bb-edge)" stroke-width="1.5"/>
+          <rect x="36" y="180" width="750" height="18" fill="var(--gap)"/>
+          <path d="M51,22 H771" stroke="var(--rail-p)" stroke-width="1.5"/>
+          <path d="M51,60 H771" stroke="var(--rail-n)" stroke-width="1.5"/>
+          <path d="M51,310 H771" stroke="var(--rail-n)" stroke-width="1.5"/>
+          <path d="M51,348 H771" stroke="var(--rail-p)" stroke-width="1.5"/>
+          <rect x="51" y="23" width="720" height="36" fill="url(#holeR)"/>
+          <rect x="51" y="311" width="720" height="36" fill="url(#holeR)"/>
+          <rect x="51" y="81" width="720" height="90" fill="url(#holeS)"/>
+          <rect x="51" y="207" width="720" height="90" fill="url(#holeS)"/>
+
+          <!-- ray işaretleri -->
+          <g font-family="var(--f-mono)" font-size="11" font-weight="600" text-anchor="middle">
+            <text x="44" y="36" fill="var(--rail-p)">+</text><text x="44" y="54" fill="var(--rail-n)">−</text>
+            <text x="44" y="324" fill="var(--rail-n)">−</text><text x="44" y="342" fill="var(--rail-p)">+</text>
+          </g>
+          <g font-family="var(--f-mono)" font-size="9" font-weight="600" text-anchor="end">
+            <text x="28" y="36" fill="var(--w-33)">3V3</text>
+            <text x="28" y="54" fill="var(--ink)">GND</text>
+            <text x="28" y="333" fill="var(--muted)" font-weight="400">boş</text>
+          </g>
+          <!-- satır harfleri -->
+          <g font-family="var(--f-mono)" font-size="9" fill="#6f6a5e" text-anchor="middle">
+            <text x="44" y="93">j</text><text x="44" y="111">i</text><text x="44" y="129">h</text><text x="44" y="147">g</text><text x="44" y="165">f</text>
+            <text x="44" y="219">e</text><text x="44" y="237">d</text><text x="44" y="255">c</text><text x="44" y="273">b</text><text x="44" y="291">a</text>
+            <text x="778" y="93">j</text><text x="778" y="111">i</text><text x="778" y="129">h</text><text x="778" y="147">g</text><text x="778" y="165">f</text>
+            <text x="778" y="219">e</text><text x="778" y="237">d</text><text x="778" y="255">c</text><text x="778" y="273">b</text><text x="778" y="291">a</text>
+          </g>
+          <!-- sütun numaraları -->
+          <g font-family="var(--f-mono)" font-size="8" fill="#6f6a5e" text-anchor="middle">
+            <text x="60" y="77">1</text><text x="132" y="77">5</text><text x="222" y="77">10</text><text x="312" y="77">15</text><text x="402" y="77">20</text><text x="492" y="77">25</text><text x="582" y="77">30</text><text x="672" y="77">35</text><text x="762" y="77">40</text>
+            <text x="60" y="304">1</text><text x="132" y="304">5</text><text x="222" y="304">10</text><text x="312" y="304">15</text><text x="402" y="304">20</text><text x="492" y="304">25</text><text x="582" y="304">30</text><text x="672" y="304">35</text><text x="762" y="304">40</text>
+          </g>
+
+          <!-- ESP32-S3 DevKitC-1 klonu (YD-ESP32-23 V1.3): J1 i8–i29 (3V3 sağda, G solda), J3 a8–a29; USB-C portları solda -->
+          <g data-w="esp">
+            <rect x="172" y="99" width="406" height="198" rx="5" fill="var(--pcb)"/>
+            <rect x="158" y="146" width="20" height="30" rx="4" fill="#c7ccd3" stroke="#8a9099"/>
+            <rect x="158" y="220" width="20" height="30" rx="4" fill="#c7ccd3" stroke="#8a9099"/>
+            <g font-family="var(--f-mono)" font-size="6" fill="var(--silk)">
+              <text x="184" y="164">USB-C</text><text x="184" y="238">USB-C</text>
+            </g>
+            <rect x="196" y="134" width="16" height="10" rx="2" fill="#3b4250"/><circle cx="204" cy="139" r="3" fill="#15181d"/>
+            <rect x="196" y="252" width="16" height="10" rx="2" fill="#3b4250"/><circle cx="204" cy="257" r="3" fill="#15181d"/>
+            <g font-family="var(--f-mono)" font-size="5.5" fill="var(--silk)"><text x="216" y="142">BOOT</text><text x="216" y="260">RST</text></g>
+            <rect x="240" y="192" width="8" height="8" fill="#f2f2f2" stroke="#8a9099" stroke-width=".6"/>
+            <text x="252" y="199" font-family="var(--f-mono)" font-size="5.5" fill="var(--silk)">RGB · IO48</text>
+            <rect x="392" y="134" width="150" height="128" rx="3" fill="#b9bec6" stroke="#8a9099"/>
+            <text x="467" y="194" text-anchor="middle" font-family="var(--f-mono)" font-size="8" font-weight="600" fill="#3b4250">ESP32-S3-WROOM-1</text>
+            <text x="467" y="207" text-anchor="middle" font-family="var(--f-mono)" font-size="7" fill="#3b4250">N16R8</text>
+            <rect x="542" y="134" width="30" height="128" fill="#26303d"/>
+            <path d="M552,144 H562 V160 H552 V176 H562 V192 H552 V208 H562 V224 H552 V240 H562 V252" fill="none" stroke="var(--pin)" stroke-width="1.5"/>
+            <text x="300" y="222" text-anchor="middle" font-family="var(--f-mono)" font-size="8" fill="#e8eef6">YD-ESP32-23 · 2022-V1.3</text>
+            <text x="300" y="234" text-anchor="middle" font-size="7.5" fill="#8b95a5">ESP32-S3 DevKitC-1 klonu</text>
+            <!-- pin başlıkları -->
+            <rect x="177" y="101" width="396" height="14" rx="1.5" fill="#111"/>
+            <rect x="177" y="281" width="396" height="14" rx="1.5" fill="#111"/>
+            <rect x="177" y="99" width="396" height="18" fill="url(#hdrP)"/>
+            <rect x="177" y="279" width="396" height="18" fill="url(#hdrP)"/>
+            <!-- J1 yazıları (i satırı) -->
+            <g font-family="var(--f-mono)" font-size="6" fill="var(--silk)" text-anchor="middle">
+              <text x="186" y="125" fill="#fff" font-weight="600">G</text><text x="204" y="125" fill="var(--w-33)" font-weight="600">5V</text>
+              <text x="222" y="125">14</text><text x="240" y="125">13</text><text x="258" y="125">12</text><text x="276" y="125">11</text><text x="294" y="125">10</text><text x="312" y="125">9</text><text x="330" y="125">46</text><text x="348" y="125">3</text><text x="366" y="125">8</text><text x="384" y="125">18</text><text x="402" y="125">17</text><text x="420" y="125">16</text><text x="438" y="125">15</text><text x="456" y="125">7</text><text x="474" y="125">6</text>
+              <text x="492" y="125" fill="#fff" font-weight="600">5</text><text x="510" y="125" fill="#fff" font-weight="600">4</text>
+              <text x="528" y="125">RST</text><text x="546" y="125">3V3</text><text x="564" y="125" fill="#fff" font-weight="600">3V3</text>
+            </g>
+            <!-- J3 yazıları (a satırı) -->
+            <g font-family="var(--f-mono)" font-size="6" fill="#6b7686" text-anchor="middle">
+              <text x="186" y="276">G</text><text x="204" y="276">G</text><text x="222" y="276">19</text><text x="240" y="276">20</text><text x="258" y="276">21</text><text x="276" y="276">47</text><text x="294" y="276">48</text><text x="312" y="276">45</text><text x="330" y="276">0</text><text x="348" y="276">35</text><text x="366" y="276">36</text><text x="384" y="276">37</text><text x="402" y="276">38</text><text x="420" y="276">39</text><text x="438" y="276">40</text><text x="456" y="276">41</text><text x="474" y="276">42</text><text x="492" y="276">2</text><text x="510" y="276">1</text><text x="528" y="276">RX</text><text x="546" y="276">TX</text><text x="564" y="276">G</text>
+            </g>
+            <text x="186" y="384" font-size="10" font-weight="600" fill="var(--ink)">← USB-C portları bu uçta</text>
+            <text x="186" y="398" font-size="9" fill="var(--muted)">Kabloyu breadboard'un soluna doğru çıkar.</text>
+            <text x="186" y="411" font-size="9" fill="var(--muted)">J3 sırası kart genişliğine göre a ya da b satırına oturur.</text>
+          </g>
+
+          <!-- SN65HVD230 (VP230): 4'lü başlık g33–g36 (3.3V, GND, RX, TX), gövde alta uzanır, CAN vidalı klemenste -->
+          <rect x="622" y="134" width="82" height="128" rx="4" fill="var(--mod)"/>
+          <g fill="var(--pin)">
+            <rect x="632" y="140" width="8" height="8" rx="1"/><rect x="650" y="140" width="8" height="8" rx="1"/><rect x="668" y="140" width="8" height="8" rx="1"/><rect x="686" y="140" width="8" height="8" rx="1"/>
+          </g>
+          <rect x="640" y="232" width="46" height="26" rx="2" fill="#3d7fd9" stroke="#16407f"/>
+          <g fill="#c9ced6" stroke="#6b7280" stroke-width=".8"><circle cx="654" cy="245" r="6"/><circle cx="672" cy="245" r="6"/></g>
+          <path d="M650,249 L658,241 M668,249 L676,241" stroke="#4b5563" stroke-width="1.4"/>
+          <g font-family="var(--f-mono)" font-size="6" fill="#e8eefc" text-anchor="middle">
+            <text x="636" y="160">3.3V</text><text x="654" y="160">GND</text><text x="672" y="160">RX</text><text x="690" y="160">TX</text>
+            <text x="663" y="176">SN65HVD230</text>
+            <text x="654" y="228" font-size="5">CANH</text><text x="672" y="228" font-size="5">CANL</text>
+            <text x="689" y="210" font-size="5">120R</text>
+          </g>
+          <rect x="648" y="184" width="30" height="22" rx="2" fill="#15181d"/>
+          <text x="663" y="198" text-anchor="middle" font-family="var(--f-mono)" font-size="5.5" fill="#9aa3b0">VP230</text>
+          <rect x="686" y="188" width="6" height="12" fill="#1a1a1a"/>
+
+          <!-- Kablolar -->
+          <g data-w="v33">
+            <path class="edge" d="M564,90 C564,64 582,62 582,32"/><path class="core v33" d="M564,90 C564,64 582,62 582,32"/>
+            <path class="edge" d="M636,90 C636,64 618,62 618,32"/><path class="core v33" d="M636,90 C636,64 618,62 618,32"/>
+            <g fill="var(--w-33)" class="end"><circle cx="564" cy="90" r="3.4"/><circle cx="582" cy="32" r="3.4"/><circle cx="636" cy="90" r="3.4"/><circle cx="618" cy="32" r="3.4"/></g>
+          </g>
+          <g data-w="gnd">
+            <path class="edge" d="M186,90 V50"/><path class="core gnd" d="M186,90 V50"/>
+            <path class="edge" d="M654,90 V50"/><path class="core gnd" d="M654,90 V50"/>
+            <path class="edge" d="M762,50 H812"/><path class="core gnd" d="M762,50 H812"/>
+            <g fill="var(--w-gnd)" class="end"><circle cx="186" cy="90" r="3.4"/><circle cx="186" cy="50" r="3.4"/><circle cx="654" cy="90" r="3.4"/><circle cx="654" cy="50" r="3.4"/><circle cx="762" cy="50" r="3.4"/></g>
+            <text x="818" y="47" font-size="10" font-weight="600" fill="var(--ink)">Klemens GND'ye</text>
+            <text x="818" y="60" font-size="9" fill="var(--muted)">12V kaynağın −</text>
+          </g>
+          <g data-w="tx">
+            <path class="edge" d="M492,90 C502,52 680,52 690,90"/><path class="core tx" d="M492,90 C502,52 680,52 690,90"/>
+            <g fill="var(--w-tx)" class="end"><circle cx="492" cy="90" r="3.4"/><circle cx="690" cy="90" r="3.4"/></g>
+          </g>
+          <g data-w="rx">
+            <path class="edge" d="M510,90 C520,68 662,68 672,90"/><path class="core rx" d="M510,90 C520,68 662,68 672,90"/>
+            <g fill="var(--w-rx)" class="end"><circle cx="510" cy="90" r="3.4"/><circle cx="672" cy="90" r="3.4"/></g>
+          </g>
+          <g data-w="canh">
+            <path class="edge" d="M654,258 V364 C654,376 672,380 672,392 C672,404 654,408 654,420 L632,440"/>
+            <path class="core canh" d="M654,258 V364 C654,376 672,380 672,392 C672,404 654,408 654,420 L632,440"/>
+            <circle cx="654" cy="258" r="3.4" fill="var(--w-canh)" class="end"/>
+            <text x="624" y="444" text-anchor="end" font-size="10" font-weight="600" fill="var(--w-canh)">CAN-H</text>
+          </g>
+          <g data-w="canl">
+            <path class="edge" d="M672,258 V364 C672,376 654,380 654,392 C654,404 672,408 672,420 L694,440"/>
+            <path class="core canl" d="M672,258 V364 C672,376 654,380 654,392 C654,404 672,408 672,420 L694,440"/>
+            <circle cx="672" cy="258" r="3.4" fill="var(--w-canl)" class="end"/>
+            <text x="702" y="444" font-size="10" font-weight="600" fill="var(--w-canl)">CAN-L</text>
+          </g>
+          <!-- opsiyonel 120Ω, gösterge soketi tarafında -->
+          <path d="M632,440 H648 M678,440 H694" stroke="#9a9a9a" stroke-width="1.6"/>
+          <rect x="648" y="434" width="30" height="12" rx="5" fill="#e9d8b4" stroke="var(--muted)" stroke-dasharray="3 2"/>
+          <g><rect x="654" y="434" width="2.5" height="12" fill="#7b4a21"/><rect x="660" y="434" width="2.5" height="12" fill="#c62828"/><rect x="666" y="434" width="2.5" height="12" fill="#7b4a21"/><rect x="672" y="434" width="2" height="12" fill="#b8962e"/></g>
+          <text x="663" y="466" text-anchor="middle" font-size="9.5" fill="var(--muted)">Klemensten göstergeye, bükümlü çift</text>
+          <text x="663" y="479" text-anchor="middle" font-size="9.5" fill="var(--muted)">120Ω: ölçüme göre, soket tarafına</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      <span class="lg"><i style="background:var(--w-33)"></i>3V3</span>
+      <span class="lg"><i style="background:var(--w-gnd)"></i>GND</span>
+      <span class="lg"><i style="background:var(--w-tx)"></i>TX · GPIO5 → modül TX</span>
+      <span class="lg"><i style="background:var(--w-rx)"></i>RX · modül RX → GPIO4</span>
+      <span class="lg"><i style="background:var(--w-canh)"></i>CAN-H</span>
+      <span class="lg"><i style="background:var(--w-canl)"></i>CAN-L</span>
+      <span>Kart üzerindeki pin yazıları temsilidir; takmadan önce kartın kendi yazısıyla karşılaştır.</span>
+    </figcaption>
+  </figure>
+  <ul class="rules">
+    <li><b>Kart:</b> J1 <span class="mono">i8–i29</span> (G <span class="mono">i8</span>, 3V3 <span class="mono">i29</span>), USB-C portları solda. J3 karşı tarafta <span class="mono">a</span> satırına oturur; sıkıysa <span class="mono">b</span>. <span class="mono">j</span> satırı jumper'lar için boş kalır.</li>
+    <li><b>Modül:</b> <span class="mono">g33–g36</span> = 3.3V, GND, RX, TX. Gövde ve mavi klemens aşağı (a satırına doğru) uzanır.</li>
+    <li><b>12V breadboard'a girmez.</b> Kart USB-C'den beslenir. Kartın 5V pinine (<span class="mono">j9</span>) hiçbir şey bağlama.</li>
+    <li><b>Raylar:</b> bazı 830'luklarda üst raylar ortadan bölünür. 3. ve 40. sütun arasında bip yoksa iki yarıyı kısa jumper ile birleştir.</li>
+  </ul>
+</section>
+
+<!-- ============ PİNLER ============ -->
+<section id="pinler">
+  <div class="sec-head">
+    <h2>Gösterge soketi</h2>
+    <p class="muted">Göstergenin arkasında iki soket var (şemada <span class="mono">C1-01</span>). Gösterge sağdaki küçük 12 pinli soketin 5 pini ile çalışır. Renkli işaretli diğer pinler kablolu lambalar içindir; bağlantıları <a href="#lambalar">Kablolu lambalar</a> bölümünde.</p>
+  </div>
+  <figure>
+    <div class="fig-scroll">
+      <svg viewBox="0 0 900 415" role="img" aria-label="Gösterge arkasındaki iki soketin pin dizilimi; küçük sokette 1C B+, 1G IG, 1E GND, 1J CAN-H, 1L CAN-L">
+        <!-- Soket 2 · 24 pin -->
+        <rect class="blk" x="60" y="30" width="176" height="332" rx="6"/>
+        <rect x="44" y="118" width="16" height="156" rx="3" fill="var(--surface-2)" stroke="var(--muted)" stroke-width="1.2"/>
+        <g data-w="kemer"><rect x="72" y="42" width="74" height="22" rx="3" fill="var(--surface)" stroke="var(--w-lamp)" stroke-width="2.5"/><text class="pl" x="80" y="57.0" font-size="11" font-weight="600">2A</text><text class="pl" x="138" y="57.0" text-anchor="end">P</text></g>
+        <rect x="72" y="68" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="80" y="83.0" fill="var(--muted)" font-size="11">2C</text><text class="s" x="138" y="83.0" text-anchor="end">B/L</text>
+        <g data-w="kapi"><rect x="72" y="94" width="74" height="22" rx="3" fill="var(--surface)" stroke="var(--w-lamp)" stroke-width="2.5"/><text class="pl" x="80" y="109.0" font-size="11" font-weight="600">2E</text><text class="pl" x="138" y="109.0" text-anchor="end">W/R</text></g>
+        <g data-w="sol"><rect x="72" y="120" width="74" height="22" rx="3" fill="var(--surface)" stroke="var(--w-turn)" stroke-width="2.5"/><text class="pl" x="80" y="135.0" font-size="11" font-weight="600">2G</text><text class="pl" x="138" y="135.0" text-anchor="end">G/B</text></g>
+        <g data-w="sag"><rect x="72" y="146" width="74" height="22" rx="3" fill="var(--surface)" stroke="var(--w-turn)" stroke-width="2.5"/><text class="pl" x="80" y="161.0" font-size="11" font-weight="600">2I</text><text class="pl" x="138" y="161.0" text-anchor="end">G/W</text></g>
+        <rect x="72" y="172" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="80" y="187.0" fill="var(--muted)" font-size="11">2K</text><text class="s" x="138" y="187.0" text-anchor="end">O</text>
+        <g data-w="elfren"><rect x="72" y="198" width="74" height="22" rx="3" fill="var(--surface)" stroke="var(--w-lamp)" stroke-width="2.5"/><text class="pl" x="80" y="213.0" font-size="11" font-weight="600">2M</text><text class="pl" x="138" y="213.0" text-anchor="end">GY</text></g>
+        <rect x="72" y="224" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="80" y="239.0" fill="var(--muted)" font-size="11">2O</text><text class="s" x="138" y="239.0" text-anchor="end">—</text>
+        <rect x="72" y="250" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="80" y="265.0" fill="var(--muted)" font-size="11">2Q</text><text class="s" x="138" y="265.0" text-anchor="end">—</text>
+        <rect x="72" y="276" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="80" y="291.0" fill="var(--muted)" font-size="11">2S</text><text class="s" x="138" y="291.0" text-anchor="end">—</text>
+        <rect x="72" y="302" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="80" y="317.0" fill="var(--muted)" font-size="11">2U</text><text class="s" x="138" y="317.0" text-anchor="end">W/L</text>
+        <rect x="72" y="328" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="80" y="343.0" fill="var(--muted)" font-size="11">2W</text><text class="s" x="138" y="343.0" text-anchor="end">P/B</text>
+        <g data-w="far"><rect x="150" y="42" width="74" height="22" rx="3" fill="var(--surface)" stroke="var(--w-12v)" stroke-width="2.5"/><text class="pl" x="158" y="57.0" font-size="11" font-weight="600">2B</text><text class="pl" x="216" y="57.0" text-anchor="end">LG/B</text></g>
+        <g data-w="far"><rect x="150" y="68" width="74" height="22" rx="3" fill="var(--surface)" stroke="var(--w-lamp)" stroke-width="2.5"/><text class="pl" x="158" y="83.0" font-size="11" font-weight="600">2D</text><text class="pl" x="216" y="83.0" text-anchor="end">BR</text></g>
+        <rect x="150" y="94" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="158" y="109.0" fill="var(--muted)" font-size="11">2F</text><text class="s" x="216" y="109.0" text-anchor="end">BR/Y</text>
+        <rect x="150" y="120" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="158" y="135.0" fill="var(--muted)" font-size="11">2H</text><text class="s" x="216" y="135.0" text-anchor="end">V</text>
+        <rect x="150" y="146" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="158" y="161.0" fill="var(--muted)" font-size="11">2J</text><text class="s" x="216" y="161.0" text-anchor="end">Y/B</text>
+        <rect x="150" y="172" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="158" y="187.0" fill="var(--muted)" font-size="11">2L</text><text class="s" x="216" y="187.0" text-anchor="end">—</text>
+        <rect x="150" y="198" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="158" y="213.0" fill="var(--muted)" font-size="11">2N</text><text class="s" x="216" y="213.0" text-anchor="end">—</text>
+        <rect x="150" y="224" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="158" y="239.0" fill="var(--muted)" font-size="11">2P</text><text class="s" x="216" y="239.0" text-anchor="end">W/G</text>
+        <rect x="150" y="250" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="158" y="265.0" fill="var(--muted)" font-size="11">2R</text><text class="s" x="216" y="265.0" text-anchor="end">R/L</text>
+        <rect x="150" y="276" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="158" y="291.0" fill="var(--muted)" font-size="11">2T</text><text class="s" x="216" y="291.0" text-anchor="end">B/O</text>
+        <rect x="150" y="302" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="158" y="317.0" fill="var(--muted)" font-size="11">2V</text><text class="s" x="216" y="317.0" text-anchor="end">—</text>
+        <rect x="150" y="328" width="74" height="22" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="158" y="343.0" fill="var(--muted)" font-size="11">2X</text><text class="s" x="216" y="343.0" text-anchor="end">—</text>
+        <!-- Soket 1 · 12 pin -->
+        <rect class="blk" x="520" y="110" width="176" height="200" rx="6"/>
+        <rect x="504" y="150" width="16" height="120" rx="3" fill="var(--surface-2)" stroke="var(--muted)" stroke-width="1.2"/>
+        <rect x="532" y="122" width="74" height="26" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="540" y="139.0" fill="var(--muted)" font-size="11">1A</text><text class="s" x="598" y="139.0" text-anchor="end">—</text>
+        <g data-w="b12"><rect x="532" y="152" width="74" height="26" rx="3" fill="var(--surface)" stroke="var(--w-12v)" stroke-width="3"/><text class="pl" x="540" y="169.0" font-size="11" font-weight="600">1C</text><text class="pl" x="598" y="169.0" text-anchor="end">L/R</text></g>
+        <g data-w="gnd"><rect x="532" y="182" width="74" height="26" rx="3" fill="var(--surface)" stroke="var(--w-gnd)" stroke-width="3"/><text class="pl" x="540" y="199.0" font-size="11" font-weight="600">1E</text><text class="pl" x="598" y="199.0" text-anchor="end">B</text></g>
+        <g data-w="ig"><rect x="532" y="212" width="74" height="26" rx="3" fill="var(--surface)" stroke="var(--w-ig)" stroke-width="3"/><text class="pl" x="540" y="229.0" font-size="11" font-weight="600">1G</text><text class="pl" x="598" y="229.0" text-anchor="end">B/Y</text></g>
+        <rect x="532" y="242" width="74" height="26" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="540" y="259.0" fill="var(--muted)" font-size="11">1I</text><text class="s" x="598" y="259.0" text-anchor="end">—</text>
+        <rect x="532" y="272" width="74" height="26" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="540" y="289.0" fill="var(--muted)" font-size="11">1K</text><text class="s" x="598" y="289.0" text-anchor="end">Y</text>
+        <rect x="610" y="122" width="74" height="26" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="618" y="139.0" fill="var(--muted)" font-size="11">1B</text><text class="s" x="676" y="139.0" text-anchor="end">R/Y</text>
+        <g data-w="hidrolik"><rect x="610" y="152" width="74" height="26" rx="3" fill="var(--surface)" stroke="var(--w-lamp)" stroke-width="2.5"/><text class="pl" x="618" y="169.0" font-size="11" font-weight="600">1D</text><text class="pl" x="676" y="169.0" text-anchor="end">BR/B</text></g>
+        <rect x="610" y="182" width="74" height="26" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="618" y="199.0" fill="var(--muted)" font-size="11">1F</text><text class="s" x="676" y="199.0" text-anchor="end">G/Y</text>
+        <rect x="610" y="212" width="74" height="26" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="618" y="229.0" fill="var(--muted)" font-size="11">1H</text><text class="s" x="676" y="229.0" text-anchor="end">—</text>
+        <g data-w="canh"><rect x="610" y="242" width="74" height="26" rx="3" fill="var(--surface)" stroke="var(--w-canh)" stroke-width="3"/><text class="pl" x="618" y="259.0" font-size="11" font-weight="600">1J</text><text class="pl" x="676" y="259.0" text-anchor="end">L/W</text></g>
+        <g data-w="canl"><rect x="610" y="272" width="74" height="26" rx="3" fill="var(--surface)" stroke="var(--w-canl)" stroke-width="3"/><text class="pl" x="618" y="289.0" font-size="11" font-weight="600">1L</text><text class="pl" x="676" y="289.0" text-anchor="end">G/B</text></g>
+        <g data-w="b12"><path class="ln" d="M432,165 H500" stroke="var(--w-12v)" stroke-width="2"/><text class="pl" x="426" y="169" text-anchor="end" font-size="11"><tspan font-weight="600">1C</tspan> B+ · sabit 12V</text></g>
+        <g data-w="gnd"><path class="ln" d="M432,195 H500" stroke="var(--w-gnd)" stroke-width="2"/><text class="pl" x="426" y="199" text-anchor="end" font-size="11"><tspan font-weight="600">1E</tspan> GND · şase</text></g>
+        <g data-w="ig"><path class="ln" d="M432,225 H500" stroke="var(--w-ig)" stroke-width="2"/><text class="pl" x="426" y="229" text-anchor="end" font-size="11"><tspan font-weight="600">1G</tspan> IG · kontak 12V</text></g>
+        <g data-w="canh"><path class="ln" d="M684,255 H732" stroke="var(--w-canh)" stroke-width="2"/><text class="pl" x="738" y="259" font-size="11"><tspan font-weight="600">1J</tspan> CAN-H → modül CANH</text></g>
+        <g data-w="canl"><path class="ln" d="M684,285 H732" stroke="var(--w-canl)" stroke-width="2"/><text class="pl" x="738" y="289" font-size="11"><tspan font-weight="600">1L</tspan> CAN-L → modül CANL</text></g>
+        <text class="t" x="148" y="388" text-anchor="middle">Soket 2 · 24 pin (büyük)</text>
+        <text class="s" x="148" y="404" text-anchor="middle">kablolu lambalar ve yakıt · 2. aşama</text>
+        <text class="t" x="608" y="338" text-anchor="middle">Soket 1 · 12 pin (küçük)</text>
+        <text class="s" x="608" y="354" text-anchor="middle">güç + CAN · 1D fren hidroliği lambası</text>
+        <text class="s" x="514" y="288" text-anchor="end">tırnak</text>
+        <text class="s" x="56" y="292" text-anchor="end">tırnak</text>
+      </svg>
+    </div>
+    <figcaption>
+      <span>Göstergenin arkasından, fotoğraftaki gibi bakış: büyük soket solda, küçük soket sağda, iki soketin de kilit tırnağı sol kenarda. A pinleri en üstte.</span>
+      <span>Hücredeki harfler araç tesisatındaki kablo rengi; "—" olan pin boş.</span>
+    </figcaption>
+  </figure>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Pin</th><th>Görev</th><th>Tesisat rengi (çıkma fiş)</th><th>Cat6 teli</th><th>Nereye</th></tr></thead>
+      <tbody>
+        <tr data-w="b12" tabindex="0"><td><span class="sw" style="background:var(--w-12v)"></span><b class="mono">1C</b></td><td>B+ · sabit 12V (hafıza, saat)</td><td><span class="mono">L/R</span> mavi, kırmızı çizgili</td><td>Mavi + beyaz-mavi</td><td>+12V klemensi (sigortadan sonra)</td></tr>
+        <tr data-w="ig" tabindex="0"><td><span class="sw" style="background:var(--w-ig)"></span><b class="mono">1G</b></td><td>IG · kontak 12V</td><td><span class="mono">B/Y</span> siyah, sarı çizgili</td><td>Kahverengi + beyaz-kahverengi</td><td>Anahtarın kenar bacağı</td></tr>
+        <tr data-w="gnd" tabindex="0"><td><span class="sw" style="background:var(--w-gnd)"></span><b class="mono">1E</b></td><td>GND · şase</td><td><span class="mono">B</span> siyah</td><td>Yeşil + beyaz-yeşil</td><td>GND klemensi</td></tr>
+        <tr data-w="canh" tabindex="0"><td><span class="sw" style="background:var(--w-canh)"></span><b class="mono">1J</b></td><td>CAN-H</td><td><span class="mono">L/W</span> mavi, beyaz çizgili</td><td>Turuncu</td><td>Modül klemensi · CANH vidası</td></tr>
+        <tr data-w="canl" tabindex="0"><td><span class="sw" style="background:var(--w-canl)"></span><b class="mono">1L</b></td><td>CAN-L</td><td><span class="mono">G/B</span> yeşil, siyah çizgili</td><td>Beyaz-turuncu</td><td>Modül klemensi · CANL vidası</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted"><b>Yönü doğrula:</b> gösterge enerjisizken küçük soketin sağ sırasındaki en alttaki iki pin (1J–1L) arası ~120Ω olmalı. Bu ölçüm tutmadan güç verme. 120Ω en üstteki iki pinde çıkarsa harf sırası terstir; şekli üst ↔ alt çevirerek oku. Çıkma fiş yoksa dişi jumper ucunu (plastik başlığı çıkarılmış, makaronlu) doğrudan pine geçir.</p>
+</section>
+
+<!-- ============ SOKET ↔ BREADBOARD ============ -->
+<section id="iliski">
+  <div class="sec-head">
+    <h2>Soket ↔ breadboard</h2>
+    <p class="muted">Gösterge soketi ile breadboard arasındaki bütün yol. Güç hattı adaptörden sigorta ve klemensler üzerinden doğrudan sokete gider, breadboard'a girmez. CAN hattı modülün vidalı klemensinden çıkar. İki taraf yalnızca GND klemensi üzerinden birleşir.</p>
+  </div>
+  <figure>
+    <div class="fig-scroll">
+      <svg viewBox="0 0 1010 575" role="img" aria-label="Adaptör, sigorta, klemensler, anahtar ve breadboard'dan gösterge soketinin 1C, 1G, 1E, 1J, 1L pinlerine giden kablolar">
+        <!-- 12V adaptör ve DC jak -->
+        <rect class="blk" x="30" y="35" width="110" height="70" rx="8"/><text class="t" x="42" y="62">12V adaptör</text><text class="s" x="42" y="78">2A · priz tipi</text>
+        <rect class="blk" x="170" y="35" width="90" height="70" rx="8"/><text class="t" x="180" y="62">DC jak</text><text class="s" x="180" y="78">vidalı klemens</text>
+        <text class="pl" x="254" y="59" text-anchor="end">+</text><text class="pl" x="254" y="89" text-anchor="end">−</text>
+        <g data-w="b12"><path class="ln b12" d="M140,55 H170 M260,55 H290 M330,55 H360"/></g>
+        <g data-w="gnd"><path class="ln gnd" d="M140,85 H170 M260,85 H300 V165 H360"/></g>
+        <rect x="290" y="47" width="40" height="16" rx="3" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.2"/><path d="M295,55 H325" stroke="var(--ink)" stroke-width="1.4"/><text class="s" x="310" y="40" text-anchor="middle">2A sigorta</text>
+        <!-- klemensler -->
+        <rect class="blk" x="360" y="40" width="130" height="30" rx="5"/><text class="pl" x="425" y="59" text-anchor="middle" font-weight="600">+12V klemens</text>
+        <rect class="blk" x="360" y="150" width="130" height="30" rx="5"/><text class="pl" x="425" y="169" text-anchor="middle" font-weight="600">GND klemens</text>
+        <!-- USB güç modülü (isteğe bağlı) -->
+        <g data-w="b12"><path class="ln b12" d="M380,70 V95" stroke-width="2.5"/></g><g data-w="gnd"><path class="ln gnd" d="M470,150 V135" stroke-width="2.5"/></g>
+        <rect x="360" y="95" width="130" height="40" rx="6" fill="var(--surface-2)" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="4 3"/><text class="pl" x="425" y="112" text-anchor="middle" font-weight="600">12V→5V USB modül</text><text class="s" x="425" y="127" text-anchor="middle">isteğe bağlı</text>
+        <g data-w="usb"><path class="ln" d="M360,115 H330 V159 a6,6 0 0 1 0,12 V250 H18 V372 H60" stroke="var(--muted)" stroke-width="2.5" stroke-dasharray="6 4"/></g>
+        <text class="s" x="26" y="244">USB-C kablo → kartın "USB" portu (geliştirirken bilgisayardan)</text>
+        <!-- klemensten göstergeye: Cat6 -->
+        <g data-w="ig"><path class="ln ig" d="M490,62 H660 V120 M660,160 V320 H782"/><path class="ln ig" d="M660,160 L646,126" stroke-width="2.5"/><circle cx="660" cy="120" r="3.5" fill="var(--surface)" stroke="var(--w-ig)" stroke-width="2"/><circle cx="660" cy="160" r="3.5" fill="var(--surface)" stroke="var(--w-ig)" stroke-width="2"/></g>
+        <text class="pl" x="646" y="114" text-anchor="end" font-weight="600">KTS102</text><text class="s" x="646" y="127" text-anchor="end">kontak anahtarı</text>
+        <g data-w="b12"><path class="ln b12" d="M490,50 H720 V240 H782"/></g>
+        <g data-w="gnd"><path class="ln gnd" d="M490,165 H654 a6,6 0 0 1 12,0 H690 V280 H782 M490,174 H540 V302"/></g>
+        <text class="pl" x="560" y="44">B+ · Cat6 mavi çift</text>
+        <text class="pl" x="500" y="79">IG · Cat6 kahverengi çift</text>
+        <text class="pl" x="500" y="158">GND · Cat6 yeşil çift</text>
+        <text class="s" x="548" y="262">breadboard − ray, 40. sütun</text>
+        <!-- breadboard -->
+        <rect x="30" y="270" width="530" height="250" rx="8" fill="var(--bb)" stroke="var(--bb-edge)" stroke-width="1.5"/>
+        <path d="M45,288 H545" stroke="var(--rail-p)" stroke-width="1.5"/><path d="M45,302 H545" stroke="var(--rail-n)" stroke-width="1.5"/>
+        <g font-family="var(--f-mono)" font-size="10" font-weight="600" text-anchor="middle"><text x="38" y="292" fill="var(--rail-p)">+</text><text x="38" y="306" fill="var(--rail-n)">−</text></g>
+        <text x="45" y="510" font-size="10" fill="#6f6a5e">Breadboard · 830 delik · + ray 3V3, − ray GND</text>
+        <rect x="70" y="330" width="240" height="130" rx="6" fill="var(--pcb)"/><rect x="60" y="360" width="14" height="24" rx="3" fill="#c7ccd3" stroke="#8a9099"/>
+        <g font-family="var(--f-mono)"><text x="80" y="376" font-size="7" fill="var(--silk)">USB</text><text x="190" y="392" text-anchor="middle" font-size="12" font-weight="600" fill="#e8eef6">YD-ESP32-23</text><text x="190" y="408" text-anchor="middle" font-size="9" fill="#8b95a5">J1 · i8–i29</text>
+        <text x="302" y="379" text-anchor="end" font-size="8" fill="var(--silk)">IO5 j25</text><text x="302" y="409" text-anchor="end" font-size="8" fill="var(--silk)">IO4 j26</text><text x="290" y="344" text-anchor="middle" font-size="8" fill="var(--silk)">3V3</text><text x="90" y="344" text-anchor="middle" font-size="8" fill="var(--silk)">G</text></g>
+        <rect x="360" y="330" width="120" height="130" rx="6" fill="var(--mod)"/>
+        <g font-family="var(--f-mono)" fill="#e8eefc"><text x="420" y="366" text-anchor="middle" font-size="11" font-weight="600">SN65HVD230</text><text x="420" y="380" text-anchor="middle" font-size="8">g33–g36</text><text x="366" y="379" font-size="8">TX</text><text x="366" y="409" font-size="8">RX</text><text x="380" y="344" text-anchor="middle" font-size="7">3.3V</text><text x="460" y="344" text-anchor="middle" font-size="7">GND</text><text x="395" y="430" text-anchor="middle" font-size="7">CANH</text><text x="445" y="430" text-anchor="middle" font-size="7">CANL</text></g>
+        <rect x="380" y="436" width="80" height="26" rx="3" fill="#3d7fd9" stroke="#16407f"/><g fill="#c9ced6" stroke="#6b7280" stroke-width=".8"><circle cx="395" cy="449" r="7"/><circle cx="445" cy="449" r="7"/></g>
+        <g data-w="v33"><path class="ln v33" d="M290,330 V288 M380,330 V288" stroke-width="2.5"/></g>
+        <g data-w="gnd"><path class="ln gnd" d="M90,330 V302 M460,330 V302" stroke-width="2.5"/></g>
+        <g data-w="tx"><path class="ln tx" d="M310,375 H354" stroke-width="2.5" marker-end="url(#aTx)"/></g>
+        <g data-w="rx"><path class="ln rx" d="M360,405 H316" stroke-width="2.5" marker-end="url(#aRx)"/></g>
+        <g data-w="canh"><path class="ln canh" d="M395,456 V545 H990 V360 H938"/></g>
+        <g data-w="canl"><path class="ln canl" d="M445,456 V528 H975 V400 H938"/></g>
+        <text class="pl" x="600" y="521">CAN-L · Cat6 beyaz-turuncu → 1L</text>
+        <text class="pl" x="600" y="560">CAN-H · Cat6 turuncu → 1J (bükümlü çift)</text>
+        <!-- gösterge küçük soket, arkadan bakış -->
+        <text class="t" x="860" y="138" text-anchor="middle">Gösterge · küçük soket</text><text class="s" x="860" y="154" text-anchor="middle">12 pin · arkadan bakış · tırnak solda</text>
+        <rect class="blk" x="770" y="170" width="180" height="250" rx="6"/>
+        <rect x="754" y="220" width="16" height="160" rx="3" fill="var(--surface-2)" stroke="var(--muted)" stroke-width="1.2"/>
+        <rect x="782" y="182" width="76" height="36" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="790" y="204" fill="var(--muted)" font-size="11">1A</text>
+        <g data-w="b12"><rect x="782" y="222" width="76" height="36" rx="3" fill="var(--surface)" stroke="var(--w-12v)" stroke-width="3"/><text class="pl" x="790" y="244" font-size="11" font-weight="600">1C</text><text class="pl" x="850" y="244" text-anchor="end">B+</text></g>
+        <g data-w="gnd"><rect x="782" y="262" width="76" height="36" rx="3" fill="var(--surface)" stroke="var(--w-gnd)" stroke-width="3"/><text class="pl" x="790" y="284" font-size="11" font-weight="600">1E</text><text class="pl" x="850" y="284" text-anchor="end">GND</text></g>
+        <g data-w="ig"><rect x="782" y="302" width="76" height="36" rx="3" fill="var(--surface)" stroke="var(--w-ig)" stroke-width="3"/><text class="pl" x="790" y="324" font-size="11" font-weight="600">1G</text><text class="pl" x="850" y="324" text-anchor="end">IG</text></g>
+        <rect x="782" y="342" width="76" height="36" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="790" y="364" fill="var(--muted)" font-size="11">1I</text>
+        <rect x="782" y="382" width="76" height="36" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="790" y="404" fill="var(--muted)" font-size="11">1K</text>
+        <rect x="862" y="182" width="76" height="36" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="870" y="204" fill="var(--muted)" font-size="11">1B</text>
+        <rect x="862" y="222" width="76" height="36" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="870" y="244" fill="var(--muted)" font-size="11">1D</text>
+        <rect x="862" y="262" width="76" height="36" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="870" y="284" fill="var(--muted)" font-size="11">1F</text>
+        <rect x="862" y="302" width="76" height="36" rx="3" fill="var(--surface-2)" stroke="var(--line)"/><text class="pl" x="870" y="324" fill="var(--muted)" font-size="11">1H</text>
+        <g data-w="canh"><rect x="862" y="342" width="76" height="36" rx="3" fill="var(--surface)" stroke="var(--w-canh)" stroke-width="3"/><text class="pl" x="870" y="364" font-size="11" font-weight="600">1J</text><text class="pl" x="930" y="364" text-anchor="end">CAN-H</text></g>
+        <g data-w="canl"><rect x="862" y="382" width="76" height="36" rx="3" fill="var(--surface)" stroke="var(--w-canl)" stroke-width="3"/><text class="pl" x="870" y="404" font-size="11" font-weight="600">1L</text><text class="pl" x="930" y="404" text-anchor="end">CAN-L</text></g>
+        <text class="s" x="860" y="440" text-anchor="middle">Lamba pinleri: Kablolu lambalar bölümü.</text>
+      </svg>
+    </div>
+    <figcaption>
+      <span class="lg"><i style="background:var(--w-12v)"></i>B+ → 1C</span>
+      <span class="lg"><i style="background:var(--w-ig)"></i>IG → anahtar → 1G</span>
+      <span class="lg"><i style="background:var(--w-gnd)"></i>GND → 1E ve breadboard − ray</span>
+      <span class="lg"><i style="background:var(--w-canh)"></i>CAN-H → 1J</span>
+      <span class="lg"><i style="background:var(--w-canl)"></i>CAN-L → 1L</span>
+      <span>Kesikli çizgi USB-C kablo. Köprü yapan çizgiler birbirine bağlı değil.</span>
+    </figcaption>
+  </figure>
+
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Ekipman</th><th>Nereye takılır</th><th>Neye bağlanır</th></tr></thead>
+      <tbody>
+        <tr><td>12V 2A adaptör</td><td>Priz</td><td>Fişi DC jaka</td></tr>
+        <tr><td>DC jak (vidalı)</td><td>Masada, breadboard dışında</td><td><span class="mono">+</span> → sigorta, <span class="mono">−</span> → GND klemensi</td></tr>
+        <tr><td>2A sigorta + yuva</td><td>DC jak <span class="mono">+</span> ile +12V klemensi arası</td><td>Kısa devrede hattı keser</td></tr>
+        <tr data-w="b12" tabindex="0"><td>+12V klemensi</td><td>Breadboard dışında</td><td>Giriş: sigorta · Çıkış: mavi çift → <b>1C</b>, anahtar, (USB modül)</td></tr>
+        <tr data-w="ig" tabindex="0"><td>KTS102 anahtar</td><td>+12V klemensi ile 1G arası</td><td>Orta bacak: +12V klemensi · Kenar bacak: kahverengi çift → <b>1G</b></td></tr>
+        <tr data-w="gnd" tabindex="0"><td>GND klemensi</td><td>Breadboard dışında</td><td>Giriş: DC jak <span class="mono">−</span> · Çıkış: yeşil çift → <b>1E</b>, breadboard − ray (40. sütun), (USB modül)</td></tr>
+        <tr data-w="canh" tabindex="0"><td>Cat6 turuncu çift</td><td>Modül klemensi ↔ gösterge</td><td>Turuncu: CANH → <b>1J</b> · Beyaz-turuncu: CANL → <b>1L</b></td></tr>
+        <tr data-w="usb" tabindex="0"><td>12V→5V USB modül <span class="muted">(isteğe bağlı)</span></td><td>Klemenslerden beslenir</td><td>USB-C kablo → kartın "USB" portu. Geliştirirken bunun yerine bilgisayar</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">Klemens girişleri: USB modülü de kullanırsan +12V ve GND klemenslerinde 4'er bağlantı olur. 3 girişli klemens yetmez; 5'li (WAGO 221-415) kullan ya da modülü üçüncü (yedek) klemensten besle.</p>
+</section>
+
+<!-- ============ TABLO ============ -->
+<section id="tablo">
+  <div class="sec-head">
+    <h2>Kablo tablosu</h2>
+    <p class="muted">Satırın üzerine gel; ilgili kablo şemada, breadboard'da ve sokette vurgulanır.</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>#</th><th>Kablo</th><th>Nereden</th><th>Nereye</th><th>Not</th></tr></thead>
+      <tbody>
+        <tr class="sub"><td colspan="5">Kart bağlantısı</td></tr>
+        <tr data-w="esp" tabindex="0"><td class="n">1</td><td><span class="sw" style="background:var(--pcb)"></span>YD-ESP32-23</td><td>J1 sırası (3V3 … G)</td><td><span class="mono">i8–i29</span></td><td>3V3 <span class="mono">i29</span>'da, G <span class="mono">i8</span>'de; USB-C portları solda. Karşı sıra <span class="mono">a</span> ya da <span class="mono">b</span> satırına</td></tr>
+        <tr class="sub"><td colspan="5">Breadboard · jumper kablolar</td></tr>
+        <tr data-w="v33" tabindex="0"><td class="n">2</td><td><span class="sw" style="background:var(--w-33)"></span>3V3</td><td><span class="mono">j29</span> · kart 3V3</td><td>Üst <span class="mono">+</span> ray</td><td>Üst + ray artık 3.3V rayı</td></tr>
+        <tr data-w="gnd" tabindex="0"><td class="n">3</td><td><span class="sw" style="background:var(--w-gnd)"></span>GND</td><td><span class="mono">j8</span> · kart G</td><td>Üst <span class="mono">−</span> ray</td><td></td></tr>
+        <tr data-w="v33" tabindex="0"><td class="n">4</td><td><span class="sw" style="background:var(--w-33)"></span>Modül 3V3</td><td><span class="mono">j33</span> · modül 3.3V</td><td>Üst <span class="mono">+</span> ray</td><td>Modülü asla kartın 5V pinine (<span class="mono">j9</span>) bağlama</td></tr>
+        <tr data-w="gnd" tabindex="0"><td class="n">5</td><td><span class="sw" style="background:var(--w-gnd)"></span>Modül GND</td><td><span class="mono">j34</span> · modül GND</td><td>Üst <span class="mono">−</span> ray</td><td></td></tr>
+        <tr data-w="tx" tabindex="0"><td class="n">6</td><td><span class="sw" style="background:var(--w-tx)"></span>TX</td><td><span class="mono">j25</span> · GPIO5</td><td><span class="mono">j36</span> · modül TX</td><td>UART gibi çapraz değil: TX → TX. Kurulum adım 2'deki ölçümle doğrula</td></tr>
+        <tr data-w="rx" tabindex="0"><td class="n">7</td><td><span class="sw" style="background:var(--w-rx)"></span>RX</td><td><span class="mono">j35</span> · modül RX</td><td><span class="mono">j26</span> · GPIO4</td><td>RX → RX</td></tr>
+        <tr data-w="canh" tabindex="0"><td class="n">8</td><td><span class="sw" style="background:var(--w-canh)"></span>CAN-H</td><td>Modül klemensi · CANH vidası</td><td>Gösterge <span class="mono">1J</span> · CAN-H</td><td>Cat6'nın bir bükümlü çifti; breadboard'a girmez</td></tr>
+        <tr data-w="canl" tabindex="0"><td class="n">9</td><td><span class="sw" style="background:var(--w-canl)"></span>CAN-L</td><td>Modül klemensi · CANL vidası</td><td>Gösterge <span class="mono">1L</span> · CAN-L</td><td></td></tr>
+        <tr data-w="gnd" tabindex="0"><td class="n">10</td><td><span class="sw" style="background:var(--w-gnd)"></span>Ortak GND</td><td>Üst <span class="mono">−</span> ray, <span class="mono">40</span></td><td>Klemens GND</td><td>Bu kablo olmadan CAN çalışmaz</td></tr>
+        <tr class="sub"><td colspan="5">12V tarafı · Cat6 (ikişer tel birleştirilmiş)</td></tr>
+        <tr data-w="b12" tabindex="0"><td class="n">11</td><td><span class="sw" style="background:var(--w-12v)"></span>+12V</td><td>DC jak <span class="mono">+</span></td><td>2A sigorta → Klemens +12V</td><td>Sigorta jaka en yakın noktada</td></tr>
+        <tr data-w="b12" tabindex="0"><td class="n">12</td><td><span class="sw" style="background:var(--w-12v)"></span>B+</td><td>Klemens +12V</td><td>Gösterge <span class="mono">1C</span> · B+ (sabit)</td><td>Hafıza ve saat için</td></tr>
+        <tr data-w="ig" tabindex="0"><td class="n">13</td><td><span class="sw" style="background:var(--w-ig)"></span>IG</td><td>Klemens +12V</td><td>Anahtar → gösterge <span class="mono">1G</span> · IG</td><td>Gösterge kontak gelince uyanır</td></tr>
+        <tr data-w="gnd" tabindex="0"><td class="n">14</td><td><span class="sw" style="background:var(--w-gnd)"></span>GND</td><td>DC jak <span class="mono">−</span></td><td>Klemens GND → gösterge <span class="mono">1E</span> · GND</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ KURULUM ============ -->
+<section id="kurulum">
+  <div class="sec-head">
+    <h2>Kurulum</h2>
+    <p class="muted">Adaptör ve USB takılı değilken kur. 6. adımdaki ölçümler bitmeden güç verme.</p>
+  </div>
+  <ol class="steps">
+    <li><div><b>Kartı tak</b>J1 <span class="mono">i8–i29</span>'a, USB-C'ler solda. İki yandan eşit bastır.</div></li>
+    <li><div><b>Modülü tak</b><span class="mono">g33–g36</span>'ya. Önce ölç: süreklilik modunda modülün TX pini çipin 1. bacağına, RX pini 4. bacağına bip vermeli. Tersse 4. adımda sarı ile yeşilin modül uçlarını değiştir.</div></li>
+    <li><div><b>Güç jumper'ları</b>Kırmızı: <span class="mono">j29</span> → + ray, <span class="mono">j33</span> → + ray. Siyah: <span class="mono">j8</span> → − ray, <span class="mono">j34</span> → − ray.</div></li>
+    <li><div><b>Sinyal jumper'ları</b>Sarı <span class="mono">j25 → j36</span> (GPIO5 → modül TX). Yeşil <span class="mono">j26 → j35</span> (modül RX → GPIO4).</div></li>
+    <li><div><b>Göstergeye giden kablolar</b>Cat6 gösterge ucunda: turuncu → <b>1J</b>, beyaz-turuncu → <b>1L</b> (modül ucu CANH/CANL vidaları), mavi çift → <b>1C</b>, kahverengi çift → anahtar → <b>1G</b>, yeşil çift → <b>1E</b>. 12V tarafı: DC jak + → 2A sigorta → +12V klemensi; DC jak − → GND klemensi → breadboard − rayı (40. sütun).</div></li>
+    <li><div><b>Güç vermeden ölç</b>
+      <ul><li>3V3 rayı – GND rayı ve +12V klemensi – GND klemensi arasında bip <b>olmamalı</b>.</li>
+      <li>Modül klemensinde CANH–CANL: <b>~60Ω</b> doğru. <b>~120Ω</b> çıkarsa soket tarafında CAN-H ile CAN-L arasına 120Ω direnç lehimle.</li></ul></div></li>
+    <li><div><b>Güç ver</b>Anahtar kapalıyken adaptörü tak, sonra anahtarı aç. CAN gelene kadar uyarı lambalarının yanması normal.</div></li>
+  </ol>
+</section>
+
+<!-- ============ FIRMWARE ============ -->
+<section id="yukle">
+  <div class="sec-head">
+    <h2>Yükle ve çalıştır</h2>
+  </div>
+  <ol class="steps">
+    <li><div><b>Bağla</b>Kartı <b>USB</b> yazan Type-C portundan bilgisayara bağla (COM portu da yükler ama CH343 sürücüsü ister).</div></li>
+    <li><div><b>Yükle</b><span class="mono">yukle_S3.bat</span>'a çift tıkla, "YUKLEME TAMAM" yazısını bekle. Bağlanamazsa: BOOT basılıyken RST'ye bas-bırak, BOOT'u bırak, tekrar çalıştır.</div></li>
+    <li><div><b>Bağlan</b>Telefonda <b>RX8-Cluster</b> ağı (şifre <span class="mono">rx8rotary</span>), tarayıcıda <span class="mono">http://192.168.4.1</span>. Açılışta lambalar yanıp ibreler bir tur atıyorsa (Hoşgeldin animasyonu) CAN çalışıyor.</div></li>
+  </ol>
+  <div class="two">
+    <div class="callout"><b>"ACK yok" görürsen</b><p>Sırayla: breadboard − rayı ile GND klemensi bağlı mı; CAN-H/CAN-L yer değiştirmiş mi (değiştirmek zarar vermez); sarı/yeşil jumper'lar <span class="mono">j35/j36</span>'da ters mi; CANH–CANL ~60Ω mu.</p></div>
+    <div class="callout"><b>RGB durum LED'i</b><p>Yeşil yavaş yanıp sönme CAN sağlıklı, kırmızı hızlı yanıp sönme göstergeden cevap yok demek. YD-ESP32-23'te LED, kart üstündeki <b>RGB</b> lehim köprüsü kapalıysa çalışır; fabrikadan açık gelir. LED yanmıyorsa köprüyü lehimle ya da yok say; CAN'ı etkilemez.</p></div>
+  </div>
+</section>
+
+<!-- ============ KABLOLU LAMBALAR ============ -->
+<section id="lambalar">
+  <div class="sec-head">
+    <div class="eyebrow">2. aşama</div>
+    <h2>Kablolu lambalar</h2>
+    <p class="muted">Check Engine, yağ, şarj, ABS, DSC ve TCS lambaları CAN'dan gelir, kablo istemez. Kapı, el freni, fren hidroliği, kemer, uzun far ve sinyaller ise göstergeye doğrudan kabloyla girer. ESP32 bunları bir ULN2803A ve iki P-MOSFET üzerinden sürer. Bu devrede 12V dolaştığı için parçalar ayrı, küçük bir breadboard'a takılır; ana breadboard'a 12V yine girmez.</p>
+  </div>
+  <figure>
+    <div class="fig-scroll">
+      <svg viewBox="0 0 1010 490" role="img" aria-label="ESP32 GPIO6, 7, 15, 16, 17 ULN2803A üzerinden 2E, 2M, 1D, 2A, 2D pinlerini toprağa çeker; GPIO18 ve GPIO8 iki P-MOSFET ile 2G ve 2I sinyal pinlerine 12V verir">
+        <!-- ESP32 -->
+        <text class="t" x="30" y="30">YD-ESP32-23</text><text class="s" x="30" y="44">ana breadboard · J1</text>
+        <rect x="30" y="56" width="170" height="262" rx="8" fill="var(--pcb)"/>
+        <g font-family="var(--f-mono)" font-size="10" fill="#e8eef6" text-anchor="end">
+          <text x="192" y="84">GPIO6 · j24</text><text x="192" y="120">GPIO7 · j23</text><text x="192" y="156">GPIO15 · j22</text><text x="192" y="192">GPIO16 · j21</text>
+          <text x="192" y="228">GPIO17 · j20</text><text x="192" y="264">GPIO18 · j19</text><text x="192" y="300">GPIO8 · j18</text>
+        </g>
+        <!-- ikinci breadboard -->
+        <rect x="305" y="22" width="490" height="378" rx="10" fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="6 4"/>
+        <text class="s" x="787" y="38" text-anchor="end">2. breadboard · 12V tarafı</text>
+        <!-- ULN2803A -->
+        <rect class="blk" x="320" y="56" width="150" height="330" rx="5"/>
+        <path d="M383,56 a12,12 0 0 0 24,0" fill="var(--surface)" stroke="var(--muted)" stroke-width="1.2"/>
+        <text class="t" x="395" y="214" text-anchor="middle">ULN2803A</text><text class="s" x="395" y="230" text-anchor="middle">çentik yukarıda</text>
+        <g class="pl" font-size="10">
+          <text x="328" y="84">1</text><text x="328" y="120">2</text><text x="328" y="156">3</text><text x="328" y="192">4</text><text x="328" y="228">5</text><text x="328" y="264">6</text><text x="328" y="300">7</text><text x="328" y="336" fill="var(--muted)">8</text><text x="328" y="372">9 GND</text>
+          <g text-anchor="end"><text x="462" y="84">18</text><text x="462" y="120">17</text><text x="462" y="156">16</text><text x="462" y="192">15</text><text x="462" y="228">14</text><text x="462" y="264">13</text><text x="462" y="300">12</text><text x="462" y="336" fill="var(--muted)">11</text><text x="462" y="372">COM 10</text></g>
+        </g>
+        <!-- ESP32 → ULN girişleri -->
+        <g data-w="kapi"><path class="ln sig" d="M200,80 H320"/></g>
+        <g data-w="elfren"><path class="ln sig" d="M200,116 H320"/></g>
+        <g data-w="hidrolik"><path class="ln sig" d="M200,152 H320"/></g>
+        <g data-w="kemer"><path class="ln sig" d="M200,188 H320"/></g>
+        <g data-w="far"><path class="ln sig" d="M200,224 H320"/></g>
+        <g data-w="sol"><path class="ln sig" d="M200,260 H320"/></g>
+        <g data-w="sag"><path class="ln sig" d="M200,296 H320"/></g>
+        <!-- ULN çıkışları → gösterge -->
+        <g data-w="kapi"><path class="ln lamp" d="M470,80 H850"/></g>
+        <g data-w="elfren"><path class="ln lamp" d="M470,116 H850"/></g>
+        <g data-w="hidrolik"><path class="ln lamp" d="M470,152 H850"/></g>
+        <g data-w="kemer"><path class="ln lamp" d="M470,188 H850"/></g>
+        <g data-w="far"><path class="ln lamp" d="M470,224 H850"/></g>
+        <!-- sinyaller: ULN → P-MOSFET kapısı, drain → gösterge -->
+        <g data-w="sol"><path class="ln turn" d="M470,260 H580" stroke-width="2.5"/><path class="ln turn" d="M670,260 H850"/></g>
+        <g data-w="sag"><path class="ln turn" d="M470,296 H540 V340 H690" stroke-width="2.5"/><path class="ln turn" d="M780,340 H850"/></g>
+        <rect class="blk" x="580" y="244" width="90" height="32" rx="4"/><text class="pl" x="625" y="258" text-anchor="middle" font-weight="600">Q1 IRF9540N</text><text class="s" x="625" y="271" text-anchor="middle">G–S arası 10k</text>
+        <rect class="blk" x="690" y="324" width="90" height="32" rx="4"/><text class="pl" x="735" y="338" text-anchor="middle" font-weight="600">Q2 IRF9540N</text><text class="s" x="735" y="351" text-anchor="middle">G–S arası 10k</text>
+        <g class="s"><text x="574" y="254" text-anchor="end">G</text><text x="676" y="254">D</text><text x="608" y="290">S</text><text x="684" y="334" text-anchor="end">G</text><text x="786" y="334">D</text><text x="718" y="370">S</text></g>
+        <!-- +12V -->
+        <g data-w="b12 far sol sag"><path class="ln b12" d="M470,368 H520 V420 H850 M600,276 V334 a6,6 0 0 1 0,12 V420 M710,356 V420 M640,420 V445" stroke-width="3"/></g>
+        <rect class="blk" x="580" y="445" width="130" height="30" rx="5"/><text class="pl" x="645" y="464" text-anchor="middle" font-weight="600">+12V klemens</text>
+        <!-- GND -->
+        <g data-w="gnd"><path class="ln gnd" d="M320,368 H290 V440"/></g>
+        <rect class="blk" x="225" y="440" width="130" height="30" rx="5"/><text class="pl" x="290" y="459" text-anchor="middle" font-weight="600">GND klemens</text>
+        <!-- gösterge pinleri -->
+        <text class="t" x="850" y="30">Gösterge</text><text class="s" x="850" y="44">pin · lamba</text>
+        <g data-w="kapi"><rect x="850" y="68" width="40" height="24" rx="3" fill="var(--surface)" stroke="var(--w-lamp)" stroke-width="2.5"/><text class="pl" x="870" y="84" text-anchor="middle" font-weight="600">2E</text><text class="pl" x="898" y="84">Kapı açık</text></g>
+        <g data-w="elfren"><rect x="850" y="104" width="40" height="24" rx="3" fill="var(--surface)" stroke="var(--w-lamp)" stroke-width="2.5"/><text class="pl" x="870" y="120" text-anchor="middle" font-weight="600">2M</text><text class="pl" x="898" y="120">El freni</text></g>
+        <g data-w="hidrolik"><rect x="850" y="140" width="40" height="24" rx="3" fill="var(--surface)" stroke="var(--w-lamp)" stroke-width="2.5"/><text class="pl" x="870" y="156" text-anchor="middle" font-weight="600">1D</text><text class="pl" x="898" y="156">Fren hidroliği</text></g>
+        <g data-w="kemer"><rect x="850" y="176" width="40" height="24" rx="3" fill="var(--surface)" stroke="var(--w-lamp)" stroke-width="2.5"/><text class="pl" x="870" y="192" text-anchor="middle" font-weight="600">2A</text><text class="pl" x="898" y="192">Emniyet kemeri</text></g>
+        <g data-w="far"><rect x="850" y="212" width="40" height="24" rx="3" fill="var(--surface)" stroke="var(--w-lamp)" stroke-width="2.5"/><text class="pl" x="870" y="228" text-anchor="middle" font-weight="600">2D</text><text class="pl" x="898" y="228">Uzun far</text></g>
+        <g data-w="sol"><rect x="850" y="248" width="40" height="24" rx="3" fill="var(--surface)" stroke="var(--w-turn)" stroke-width="2.5"/><text class="pl" x="870" y="264" text-anchor="middle" font-weight="600">2G</text><text class="pl" x="898" y="264">Sol sinyal</text></g>
+        <g data-w="sag"><rect x="850" y="328" width="40" height="24" rx="3" fill="var(--surface)" stroke="var(--w-turn)" stroke-width="2.5"/><text class="pl" x="870" y="344" text-anchor="middle" font-weight="600">2I</text><text class="pl" x="898" y="344">Sağ sinyal</text></g>
+        <g data-w="far"><rect x="850" y="408" width="40" height="24" rx="3" fill="var(--surface)" stroke="var(--w-12v)" stroke-width="2.5"/><text class="pl" x="870" y="424" text-anchor="middle" font-weight="600">2B</text><text class="pl" x="898" y="424">Uzun far +12V</text></g>
+      </svg>
+    </div>
+    <figcaption>
+      <span class="lg"><i style="background:var(--w-sig)"></i>3.3V GPIO → ULN girişi</span>
+      <span class="lg"><i style="background:var(--w-lamp)"></i>ULN çıkışı · lambayı toprağa çeker</span>
+      <span class="lg"><i style="background:var(--w-turn)"></i>Sinyal · MOSFET 12V verir</span>
+      <span class="lg"><i style="background:var(--w-12v)"></i>+12V</span>
+      <span class="lg"><i style="background:var(--w-gnd)"></i>GND</span>
+      <span>ULN2803A'nın 8. kanalı (pin 8 → 11) boş. Köprü yapan çizgiler birbirine bağlı değil.</span>
+    </figcaption>
+  </figure>
+
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Lamba</th><th>Gösterge pini</th><th>ESP32</th><th>ULN2803A</th><th>Sonra</th></tr></thead>
+      <tbody>
+        <tr data-w="kapi" tabindex="0"><td><span class="sw" style="background:var(--w-lamp)"></span>Kapı açık</td><td><b class="mono">2E</b> <span class="mono muted">W/R</span></td><td><span class="mono">GPIO6 · j24</span></td><td><span class="mono">1 → 18</span></td><td>Toprağa çekilince yanar</td></tr>
+        <tr data-w="elfren" tabindex="0"><td><span class="sw" style="background:var(--w-lamp)"></span>El freni</td><td><b class="mono">2M</b> <span class="mono muted">GY</span></td><td><span class="mono">GPIO7 · j23</span></td><td><span class="mono">2 → 17</span></td><td>BRAKE lambası</td></tr>
+        <tr data-w="hidrolik" tabindex="0"><td><span class="sw" style="background:var(--w-lamp)"></span>Fren hidroliği</td><td><b class="mono">1D</b> <span class="mono muted">BR/B</span></td><td><span class="mono">GPIO15 · j22</span></td><td><span class="mono">3 → 16</span></td><td>Küçük 12 pinli sokette</td></tr>
+        <tr data-w="kemer" tabindex="0"><td><span class="sw" style="background:var(--w-lamp)"></span>Emniyet kemeri</td><td><b class="mono">2A</b> <span class="mono muted">P</span></td><td><span class="mono">GPIO16 · j21</span></td><td><span class="mono">4 → 15</span></td><td>Deneysel; araçta SAS modülünden gelir</td></tr>
+        <tr data-w="far" tabindex="0"><td><span class="sw" style="background:var(--w-lamp)"></span>Uzun far</td><td><b class="mono">2D</b> <span class="mono muted">BR</span> + <b class="mono">2B</b> <span class="mono muted">LG/B</span></td><td><span class="mono">GPIO17 · j20</span></td><td><span class="mono">5 → 14</span></td><td>2B sürekli +12V klemensine</td></tr>
+        <tr data-w="sol" tabindex="0"><td><span class="sw" style="background:var(--w-turn)"></span>Sol sinyal</td><td><b class="mono">2G</b> <span class="mono muted">G/B</span></td><td><span class="mono">GPIO18 · j19</span></td><td><span class="mono">6 → 13</span> → Q1 G</td><td>Q1 D → 2G. Yanıp sönmeyi ESP32 yapar</td></tr>
+        <tr data-w="sag" tabindex="0"><td><span class="sw" style="background:var(--w-turn)"></span>Sağ sinyal</td><td><b class="mono">2I</b> <span class="mono muted">G/W</span></td><td><span class="mono">GPIO8 · j18</span></td><td><span class="mono">7 → 12</span> → Q2 G</td><td>Q2 D → 2I</td></tr>
+        <tr class="sub"><td colspan="5">Güç</td></tr>
+        <tr data-w="gnd" tabindex="0"><td><span class="sw" style="background:var(--w-gnd)"></span>ULN GND</td><td>–</td><td>–</td><td><span class="mono">pin 9</span></td><td>GND klemensi. ESP32 ile ortak toprak bu yoldan</td></tr>
+        <tr data-w="b12" tabindex="0"><td><span class="sw" style="background:var(--w-12v)"></span>+12V</td><td><b class="mono">2B</b></td><td>–</td><td><span class="mono">pin 10 · COM</span></td><td>+12V klemensi → COM, Q1 S, Q2 S, 2B</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ol class="steps">
+    <li><div><b>Önce elle dene</b>Gösterge açıkken tek bir jumper ile: <b>2E</b>'yi GND klemensine değdir → kapı lambası; <b>2M</b> → el freni. <b>2G</b>'ye +12V değdir → sol sinyal. <b>2B</b>'ye +12V verip <b>2D</b>'yi GND'ye değdir → uzun far. Lamba yanmıyorsa pini yanlış sayıyorsun; <a href="#pinler">Gösterge soketi</a> şekline bak.</div></li>
+    <li><div><b>Parçaları tak</b>ULN2803A'yı ikinci breadboard'da orta boşluğun üstüne tak; pin 1 ile pin 18 çentik tarafında karşı karşıya. Q1 ve Q2'yi yanına: yazılı yüz sana bakarken bacaklar soldan <b>G, D, S</b>.</div></li>
+    <li><div><b>Güç</b>ULN pin 9 → GND klemensi. ULN pin 10 (COM), Q1 S, Q2 S ve gösterge 2B → +12V klemensi. Her MOSFET'in G ile S bacağı arasına 10k.</div></li>
+    <li><div><b>Sinyal jumper'ları</b>Ana breadboard'dan uzun erkek-erkek jumper ile: <span class="mono">j24</span> → pin 1, <span class="mono">j23</span> → 2, <span class="mono">j22</span> → 3, <span class="mono">j21</span> → 4, <span class="mono">j20</span> → 5, <span class="mono">j19</span> → 6, <span class="mono">j18</span> → 7.</div></li>
+    <li><div><b>Çıkışlar</b>Pin 18 → 2E, 17 → 2M, 16 → 1D, 15 → 2A, 14 → 2D. Pin 13 → Q1 G, pin 12 → Q2 G. Q1 D → 2G, Q2 D → 2I.</div></li>
+    <li><div><b>Panelden dene</b>"Kontak ve kablolu lambalar" kartındaki düğmeler lambaları tek tek yakar. Modlar → <b>Işık şovu</b> hepsini sırayla çalıştırır.</div></li>
+  </ol>
+  <div class="two">
+    <div class="callout"><b>+12V klemensi dolar</b><p>COM, Q1 S, Q2 S ve 2B ile dört bağlantı daha gelir. Ayrı bir 5'li klemensi (WAGO 221-415) ana +12V klemensinden tek kabloyla besle, lamba tarafını oradan dağıt.</p></div>
+    <div class="callout"><b>Sinyaller için röle modülü</b><p>MOSFET yerine 2 kanallı röle de olur: VCC 12V→5V modülünden (kartın 5V pinine bağlama), IN1/IN2 doğrudan GPIO18/GPIO8, COM → +12V, NO → 2G / 2I. Low-trigger modülde <span class="mono">config.h</span>'de <span class="mono">TURN_ACTIVE_LEVEL LOW</span> yap; varsa tetik jumper'ını High'a almak daha sağlam.</p></div>
+    <div class="callout"><b>Masada sönmeyenler</b><p>Airbag (2K) ve güvenlik lambası (2F) ayrı modüllerden gelir, yanık kalır. Yakıt ibresi 2R–2T ve 2P–2T arasına birer 500Ω pot ister; bağlı değilse E'de kalır.</p></div>
+  </div>
+</section>
+
+</main>
+
+<script>
+(function(){
+  // Tablo satırı → kablo vurgusu
+  const wires = document.querySelectorAll('svg [data-w]');
+  function hl(w){
+    document.body.classList.toggle('hl', !!w);
+    wires.forEach(el => el.classList.toggle('on', !!w && el.dataset.w.split(' ').includes(w)));
+  }
+  document.querySelectorAll('tr[data-w]').forEach(r => {
+    r.addEventListener('mouseenter', () => hl(r.dataset.w));
+    r.addEventListener('focus', () => hl(r.dataset.w));
+    r.addEventListener('mouseleave', () => hl(null));
+    r.addEventListener('blur', () => hl(null));
+  });
+})();
+</script>
+</body>
+</html>
